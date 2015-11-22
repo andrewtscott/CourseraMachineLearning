@@ -1,1 +1,1 @@
-# CourseraMachineLearning
+This is a repository containing my final project for the Coursera Machine Learning class on Coursera.
