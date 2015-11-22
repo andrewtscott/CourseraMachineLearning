@@ -1,0 +1,88 @@
+---
+title: "Coursera Practical Machine Learning"
+author: "Andrew Scott"
+date: "November 19, 2015"
+output: html_document
+---
+
+## Problem Statement
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
+
+## Dependencies
+
+This analysis depends on the `caret` package for the machine learning algorithms and the `doParallel` library so that the training can execute on multiple processor cores.
+
+
+```{r cache=TRUE, warning=FALSE, results='hide'}
+  library(caret)
+  library(doParallel)
+```
+
+
+## Data Partitioning
+The training data was split into a training set and testing set using the `createDataPartition` function with 60% of the original training set dedicated to training the model and 40% held for cross validation.
+
+```{r cache=TRUE}
+
+  dataset <- read.csv("pml-training.csv", stringsAsFactors = FALSE)
+  inTrain <- createDataPartition(y = dataset$classe, p = .6, list = FALSE)
+  
+  train <- dataset[inTrain, ]
+  test <- dataset[-inTrain, ]
+```
+
+
+## Data Cleanup
+
+I performed some data cleanup removing unnecessary columns from the training set. The method I used to identify these columns was a simple visual 
+inspection of the data using Excel. There was a lot of additional columns that were added soley for use in records that had a `new_window` column value
+of "yes". Since this analysis was looking at each record individually as opposed to a time series it didn't make sense to keep these columns. Also, columns 1 through 7 contained timestamps and other metadata that logically didn't need to be included.
+
+```{r cache=TRUE}
+  finalNames <- names(Filter(function(x)!all(is.na(x) | x == ""), train[train$new_window == "no",]))
+  finalNames <- finalNames[-(1:7)]
+  
+  train <- subset(train, select=finalNames)
+```
+
+## Training The Model
+
+The model was trained using the caret package `rf` algorithm using cross validation set to 10 iterations. The doParallel library was used to make sure to use all of the availible processor cores on the machine. 
+
+```{r cache=TRUE}
+  cl <- makeCluster(detectCores())
+  registerDoParallel(cl)
+  
+  train_ctrl <- trainControl(method="cv", allowParallel=TRUE)
+  model = train(classe ~ ., method="rf", data=train, trControl=train_ctrl)
+  stopCluster(cl)
+```
+
+
+## Results
+```{r}
+  accuracy = function(values,prediction){sum(prediction == values) /length(values)}
+  
+  model
+  
+  test_accuracy = round((accuracy(test$classe, predict(model, test)) * 100), 2)
+```
+
+Using the code above to execute a prediction on the 40% of the training set that was held out I would expect an accuracy of `r test_accuracy`% and the out-of-sample error rate to be  `r 100 - test_accuracy`%.
+
+## Test on Final Data
+The code in the block below can be uncomented to run the final analysis on the testing data to get the values to submit for the final project.
+
+```{r}
+  #pml_write_files = function(x){
+  #  n = length(x)
+  #  for(i in 1:n){
+  #    filename = paste0("problem_id_",i,".txt")
+  #    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  #  }
+  #}
+  
+  #final_dataset <- read.csv("pml-testing.csv", stringsAsFactors = FALSE)
+  #answers = predict(model, final_dataset)
+  #pml_write_files(answers)
+```
